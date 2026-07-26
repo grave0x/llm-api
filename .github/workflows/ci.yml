@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for lint scripts
+        id: check-lint
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.lint ? 0 : 1)" 2>/dev/null; then
+            echo "has_lint=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lint=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Lint
+        if: steps.check-lint.outputs.has_lint == 'true'
+        run: npm run lint
+
+      - name: Check for test scripts
+        id: check-test
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)" 2>/dev/null; then
+            echo "has_test=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_test=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test
+        if: steps.check-test.outputs.has_test == 'true'
+        run: npm test
+
+      - name: Check for build scripts
+        id: check-build
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)" 2>/dev/null; then
+            echo "has_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        if: steps.check-build.outputs.has_build == 'true'
+        run: npm run build
